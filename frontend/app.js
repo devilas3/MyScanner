@@ -316,7 +316,10 @@ function switchView(viewId) {
   viewAllDataView.classList.toggle("hidden", isScanner);
   navScanner.classList.toggle("active", isScanner);
   navViewAllData.classList.toggle("active", !isScanner);
-  if (viewId === "view-all-data" && !viewAllDateInput.value) viewAllDateInput.value = todayISO();
+  if (viewId === "view-all-data") {
+    if (!viewAllDateInput.value) viewAllDateInput.value = todayISO();
+    loadViewAllData(); // Auto-load table when opening this view
+  }
 }
 
 async function loadViewAllData() {
@@ -342,10 +345,14 @@ async function loadViewAllData() {
       `;
       viewAllTableBody.appendChild(tr);
     }
-    showToast(`Loaded ${data.length} records for ${date}.`);
+    if (data.length === 0) {
+      showToast(`No data for ${date}. Run backfill from backend: python3 scripts/backfill.py --years 2`);
+    } else {
+      showToast(`Loaded ${data.length} records for ${date}.`);
+    }
   } catch (err) {
     console.error(err);
-    showToast("Failed to load data. Check date and API.");
+    showToast("Failed to load data. Check API URL and CORS, or run backfill.");
   }
 }
 
