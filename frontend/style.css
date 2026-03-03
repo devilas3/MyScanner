@@ -42,6 +42,70 @@ body {
   color: #f9fafb;
 }
 
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar-nav .nav-item {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: #94a3b8;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.sidebar-nav .nav-item:hover {
+  background: rgba(59, 130, 246, 0.15);
+  color: #e5e7eb;
+}
+
+.sidebar-nav .nav-item.active {
+  background: rgba(59, 130, 246, 0.25);
+  color: #f9fafb;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.view-all-data-view {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.view-all-data-panel {
+  padding: 18px 20px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(30, 64, 175, 0.2));
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.view-all-data-title {
+  margin: 0 0 14px 0;
+  font-size: 16px;
+  color: #e5e7eb;
+}
+
+.view-all-data-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.view-all-data-panel .table-wrapper {
+  max-height: 70vh;
+  overflow: auto;
+}
+
 .primary-btn {
   padding: 10px 14px;
   border-radius: 999px;

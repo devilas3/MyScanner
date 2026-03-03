@@ -10,6 +10,10 @@
     <div class="app-shell">
       <aside class="sidebar">
         <h1 class="logo">NSE Scanner</h1>
+        <nav class="sidebar-nav">
+          <button type="button" class="nav-item active" id="nav-scanner" data-view="scanner">Scanner</button>
+          <button type="button" class="nav-item" id="nav-view-all-data" data-view="view-all-data">View all stock data</button>
+        </nav>
         <button id="btn-r1-breakout" class="primary-btn">R1 Pivot Breakout</button>
         <div class="sidebar-note">
           Runs scan with condition:<br />
@@ -17,6 +21,7 @@
         </div>
       </aside>
       <main class="main">
+        <div class="scanner-view" id="scanner-view">
         <header class="toolbar">
           <div class="field">
             <label for="scan-date">Date</label>
@@ -144,6 +149,36 @@
             </div>
           </div>
         </section>
+        </div>
+
+        <div class="view-all-data-view hidden" id="view-all-data-view">
+          <section class="view-all-data-panel">
+            <h2 class="view-all-data-title">View all equity data</h2>
+            <div class="view-all-data-controls">
+              <div class="field">
+                <label for="view-all-date">Select date</label>
+                <input type="date" id="view-all-date" />
+              </div>
+              <button type="button" id="btn-view-all-submit" class="primary-btn">Submit</button>
+            </div>
+            <div class="table-wrapper">
+              <table id="view-all-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Date</th>
+                    <th>Open</th>
+                    <th>High</th>
+                    <th>Low</th>
+                    <th>Close</th>
+                    <th>Volume</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
       </main>
     </div>
 

@@ -62,6 +62,18 @@ class ContractRow(BaseModel):
     expiry_date: date
 
 
+class OHLCRow(BaseModel):
+    symbol: str
+    date: date
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: Optional[float] = None
+    segment: str = "equity"
+    expiry_date: Optional[date] = None
+
+
 class ScanRequest(BaseModel):
     date: date
     segment: str = "equity"
@@ -114,6 +126,34 @@ def api_get_pivots(
             expiry_date=r.get("expiry_date"),
         )
         for r in sorted(rows, key=lambda x: (x["symbol"], x.get("expiry_date") or date.min))
+    ]
+
+
+@app.get("/api/ohlc", response_model=List[OHLCRow])
+def api_get_ohlc(
+    date: date = Query(..., description="Trading date"),
+    segment: str = Query("equity"),
+    expiry_date: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Return all OHLC records for the given date (and segment; for future, optional expiry_date)."""
+    q = db.query(OHLC).filter(OHLC.date == date, OHLC.segment == segment)
+    if segment == "future" and expiry_date is not None:
+        q = q.filter(OHLC.expiry_date == expiry_date)
+    rows = q.order_by(OHLC.symbol).all()
+    return [
+        OHLCRow(
+            symbol=r.symbol,
+            date=r.date,
+            open=r.open,
+            high=r.high,
+            low=r.low,
+            close=r.close,
+            volume=getattr(r, "volume", None),
+            segment=r.segment,
+            expiry_date=getattr(r, "expiry_date", None),
+        )
+        for r in rows
     ]
 
 

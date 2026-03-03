@@ -27,6 +27,15 @@ const expiryFarLabel = document.getElementById("expiry-far-label");
 const backfillSecretInput = document.getElementById("backfill-secret");
 const btnBackfillFutures = document.getElementById("btn-backfill-futures");
 
+// View all stock data
+const navScanner = document.getElementById("nav-scanner");
+const navViewAllData = document.getElementById("nav-view-all-data");
+const scannerView = document.getElementById("scanner-view");
+const viewAllDataView = document.getElementById("view-all-data-view");
+const viewAllDateInput = document.getElementById("view-all-date");
+const btnViewAllSubmit = document.getElementById("btn-view-all-submit");
+const viewAllTableBody = document.querySelector("#view-all-table tbody");
+
 function todayISO() {
   const d = new Date();
   const off = d.getTimezoneOffset();
@@ -293,6 +302,51 @@ function init() {
       loadBackfillExpiries("historical", backfillDateInput.value);
   });
   btnBackfillFutures.addEventListener("click", submitBackfillFutures);
+
+  // View all stock data: nav switch
+  navScanner.addEventListener("click", () => switchView("scanner"));
+  navViewAllData.addEventListener("click", () => switchView("view-all-data"));
+  if (!viewAllDateInput.value) viewAllDateInput.value = todayISO();
+  btnViewAllSubmit.addEventListener("click", loadViewAllData);
+}
+
+function switchView(viewId) {
+  const isScanner = viewId === "scanner";
+  scannerView.classList.toggle("hidden", !isScanner);
+  viewAllDataView.classList.toggle("hidden", isScanner);
+  navScanner.classList.toggle("active", isScanner);
+  navViewAllData.classList.toggle("active", !isScanner);
+  if (viewId === "view-all-data" && !viewAllDateInput.value) viewAllDateInput.value = todayISO();
+}
+
+async function loadViewAllData() {
+  const date = viewAllDateInput.value;
+  if (!date) {
+    showToast("Select a date.");
+    return;
+  }
+  try {
+    viewAllTableBody.innerHTML = "";
+    const url = `${API_BASE_URL}/api/ohlc?date=${encodeURIComponent(date)}&segment=equity`;
+    const data = await fetchJSON(url);
+    for (const row of data) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${row.symbol}</td>
+        <td>${row.date}</td>
+        <td>${row.open.toFixed(2)}</td>
+        <td>${row.high.toFixed(2)}</td>
+        <td>${row.low.toFixed(2)}</td>
+        <td>${row.close.toFixed(2)}</td>
+        <td>${row.volume != null ? Number(row.volume).toLocaleString() : "—"}</td>
+      `;
+      viewAllTableBody.appendChild(tr);
+    }
+    showToast(`Loaded ${data.length} records for ${date}.`);
+  } catch (err) {
+    console.error(err);
+    showToast("Failed to load data. Check date and API.");
+  }
 }
 
 document.addEventListener("DOMContentLoaded", init);
