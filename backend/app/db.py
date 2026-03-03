@@ -1,3 +1,4 @@
+import socket
 from datetime import date
 from typing import Generator
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
@@ -22,8 +23,28 @@ from .config import get_settings
 settings = get_settings()
 
 
+def _resolve_host_to_ipv4(host: str, port: int | None) -> str:
+    """Resolve hostname to IPv4 so runtimes that expect an IP (e.g. ip_address(host)) don't raise."""
+    if not host:
+        return host
+    try:
+        ipaddress = __import__("ipaddress")
+        ipaddress.ip_address(host)  # already an IP
+        return host
+    except ValueError:
+        pass
+    try:
+        port = port or 5432
+        infos = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+        for (_fam, _typ, _proto, _name, sockaddr) in infos:
+            return sockaddr[0]
+    except (socket.gaierror, OSError):
+        pass
+    return host
+
+
 def _engine_url_with_ssl(url: str) -> str:
-    """Ensure PostgreSQL URLs have sslmode=require for Supabase/cloud DBs."""
+    """Ensure PostgreSQL URLs have sslmode=require; resolve hostname to IPv4 for strict runtimes (e.g. Render)."""
     if not url.startswith("postgresql"):
         return url
     parsed = urlparse(url)
@@ -31,6 +52,20 @@ def _engine_url_with_ssl(url: str) -> str:
     if not any(k == "sslmode" for k, _ in params):
         params.append(("sslmode", "require"))
     new_query = urlencode(params)
+    host = parsed.hostname
+    port = parsed.port
+    if host:
+        resolved = _resolve_host_to_ipv4(host, port)
+        if resolved != host:
+            # Replace only the host part in netloc so user/pass stay intact
+            netloc = parsed.netloc
+            at = netloc.rfind("@") + 1
+            rest = netloc[at:]
+            colon = rest.find(":")
+            host_part = rest[:colon] if colon >= 0 else rest
+            suffix = rest[colon:] if colon >= 0 else ""
+            new_netloc = netloc[:at] + resolved + suffix
+            parsed = parsed._replace(netloc=new_netloc)
     return urlunparse(parsed._replace(query=new_query))
 
 
