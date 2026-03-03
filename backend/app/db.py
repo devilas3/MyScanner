@@ -1,5 +1,6 @@
 from datetime import date
 from typing import Generator
+from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 from sqlalchemy import (
     Column,
@@ -12,6 +13,7 @@ from sqlalchemy import (
     create_engine,
     select,
 )
+from sqlalchemy.pool import NullPool
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -19,7 +21,25 @@ from .config import get_settings
 
 settings = get_settings()
 
-engine = create_engine(settings.database_url, future=True)
+
+def _engine_url_with_ssl(url: str) -> str:
+    """Ensure PostgreSQL URLs have sslmode=require for Supabase/cloud DBs."""
+    if not url.startswith("postgresql"):
+        return url
+    parsed = urlparse(url)
+    params = parse_qsl(parsed.query)
+    if not any(k == "sslmode" for k, _ in params):
+        params.append(("sslmode", "require"))
+    new_query = urlencode(params)
+    return urlunparse(parsed._replace(query=new_query))
+
+
+_db_url = _engine_url_with_ssl(settings.database_url)
+engine = create_engine(
+    _db_url,
+    future=True,
+    poolclass=NullPool,  # works better when Render spins down (serverless)
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
 
 metadata = MetaData()

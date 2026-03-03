@@ -81,9 +81,10 @@ Make sure `API_BASE_URL` in `frontend/app.js` matches your backend URL (default:
 1. Push this project to GitHub.
 2. On `render.com`, create a new **Web Service**:
    - Repo: your GitHub repo
-   - **Root Directory: `backend`** (required – `requirements.txt` is inside `backend/`)
-   - Build command: `pip install -r requirements.txt`
-   - Start command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+   - **Root Directory:** `backend` (required – `requirements.txt` is inside `backend/`)
+   - **Build command:** `pip install -r requirements.txt`
+   - **Start command:** `uvicorn app.main:app --host 0.0.0.0 --port $PORT`  
+     (enter only this – do not add `start` or any other word in front)
    - If you use the repo’s `render.yaml`, Root Directory is set automatically.
 3. Set environment variables:
    - `DATABASE_URL` – PostgreSQL URL from Supabase/Neon
