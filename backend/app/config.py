@@ -1,9 +1,10 @@
 import os
+import re
 import socket
 from functools import lru_cache
 from pathlib import Path
 from typing import List
-from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
+from urllib.parse import parse_qsl, urlencode
 
 from dotenv import load_dotenv
 from pydantic import AnyHttpUrl, BaseModel
@@ -14,33 +15,29 @@ load_dotenv(_env_path)
 
 
 def _resolve_postgres_host_to_ipv4(url: str) -> str:
-    """Resolve hostname in PostgreSQL URL to IPv4 so runtimes that call ip_address(host) don't raise."""
-    if not url.startswith("postgresql"):
+    """Resolve hostname to IPv4 using regex only (urlparse calls ip_address(host) and fails on hostnames)."""
+    if not url or not url.startswith("postgresql"):
         return url
-    parsed = urlparse(url)
-    host = parsed.hostname
-    port = parsed.port or 5432
-    if not host:
+    m = re.match(r"^(postgresql(?:\+\w+)?://[^@]+@)([^:/]+)(:\d+)?(/.*)?$", url)
+    if not m:
         return url
+    prefix, host, port_suffix, path_suffix = m.groups()
+    port = 5432
+    if port_suffix:
+        port = int(port_suffix.lstrip(":"))
     try:
         __import__("ipaddress").ip_address(host)
-        return url  # already an IP
+        return url
     except ValueError:
         pass
     try:
         infos = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
         if not infos:
             return url
-        resolved_ip = infos[0][4][0]
-        netloc = parsed.netloc
-        at = netloc.rfind("@") + 1
-        rest = netloc[at:]
-        colon = rest.find(":")
-        host_part = rest[:colon] if colon >= 0 else rest
-        suffix = rest[colon:] if colon >= 0 else ""
-        new_netloc = netloc[:at] + resolved_ip + suffix
-        new_url = urlunparse(parsed._replace(netloc=new_netloc))
-        return new_url
+        ip = infos[0][4][0]
+        path_suffix = path_suffix or "/postgres"
+        port_suffix = port_suffix or ""
+        return f"{prefix}{ip}{port_suffix}{path_suffix}"
     except (socket.gaierror, OSError):
         return url
 
