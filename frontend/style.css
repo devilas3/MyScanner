@@ -144,6 +144,78 @@ code {
   box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.4);
 }
 
+/* Futures backfill panel */
+.backfill-panel {
+  padding: 14px 18px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.85), rgba(30, 64, 175, 0.2));
+  border: 1px solid rgba(148, 163, 184, 0.25);
+}
+
+.backfill-title {
+  margin: 0 0 12px 0;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #94a3b8;
+}
+
+.backfill-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 20px;
+}
+
+.backfill-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #9ca3af;
+  margin-right: 4px;
+}
+
+.backfill-radio-group {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.backfill-radio-group .radio-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #e5e7eb;
+}
+
+.backfill-radio-group input[type="radio"] {
+  accent-color: #3b82f6;
+}
+
+.backfill-date-wrap,
+.backfill-expiry-wrap,
+.backfill-secret-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.backfill-date-wrap input,
+.backfill-secret-wrap input {
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.6);
+  background: rgba(15, 23, 42, 0.8);
+  color: #e5e7eb;
+  font-size: 13px;
+}
+
+.backfill-secret-wrap input {
+  min-width: 140px;
+}
+
 .conditions-panel {
   padding: 16px 18px;
   border-radius: 18px;

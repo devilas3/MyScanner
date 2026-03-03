@@ -1,5 +1,5 @@
 from datetime import date
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,7 +10,11 @@ from .config import get_settings
 from .condition_engine import evaluate_conditions_for_rows
 from .db import OHLC, get_db, get_future_contracts, init_db
 from .pivot import compute_pivots_from_ohlc, find_r1_breakouts_for_date
-from .bhavcopy_fetcher import refresh_latest_for_all_segments
+from .bhavcopy_fetcher import (
+    backfill_futures_for_options,
+    get_near_next_far_expiries,
+    refresh_latest_for_all_segments,
+)
 
 
 settings = get_settings()
@@ -182,6 +186,49 @@ def api_scan(req: ScanRequest, db: Session = Depends(get_db)):
 
     filtered_rows = evaluate_conditions_for_rows(dataset, req.conditions, req.combine)
     return [ScanRow(**r) for r in filtered_rows]
+
+
+@app.get("/api/futures/expiries")
+def api_futures_expiries(
+    mode: str = Query(..., description="latest or historical"),
+    ref_date: Optional[date] = Query(None, alias="date", description="Required when mode=historical (YYYY-MM-DD)"),
+) -> Any:
+    """Returns near, next, far contract info for Latest (today) or Historical (given date)."""
+    if mode not in ("latest", "historical"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="mode must be 'latest' or 'historical'")
+    if mode == "historical" and ref_date is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="date is required when mode=historical")
+    reference = ref_date if mode == "historical" and ref_date else date.today()
+    return get_near_next_far_expiries(reference)
+
+
+class BackfillFuturesRequest(BaseModel):
+    mode: str  # "latest" | "historical"
+    date: Optional[date] = None  # required when mode=historical
+    contract: str  # "near" | "next" | "far" | "all"
+
+
+@app.post("/api/backfill/futures")
+def api_backfill_futures(
+    req: BackfillFuturesRequest,
+    x_refresh_secret: str = Header(default=""),
+    db: Session = Depends(get_db),
+):
+    """Backfill NIFTY futures for one date. Latest = today; Historical = req.date. contract: near|next|far|all."""
+    if x_refresh_secret != settings.refresh_secret:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    if req.mode not in ("latest", "historical"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="mode must be 'latest' or 'historical'")
+    if req.mode == "historical" and req.date is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="date is required when mode=historical")
+    if req.contract not in ("near", "next", "far", "all"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="contract must be near, next, far, or all")
+    for_date = req.date if req.mode == "historical" else date.today()
+    try:
+        n = backfill_futures_for_options(db, for_date, req.contract)
+        return {"status": "ok", "rows_upserted": n}
+    except Exception as e:
+        return {"status": "error", "message": str(e)[:200]}
 
 
 @app.post("/api/refresh")

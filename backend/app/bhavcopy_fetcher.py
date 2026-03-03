@@ -38,18 +38,54 @@ def _contract_label(expiry: date) -> str:
     return f"NIFTY{expiry.year % 100}{expiry.strftime('%b').upper()}"
 
 
-def _next_three_expiries() -> List[date]:
-    """Current month and next two months' last Thursday (NSE index futures expiry)."""
-    today = date.today()
+def _next_three_expiries_from(reference_date: date) -> List[date]:
+    """Near, next, far month last Thursdays from a reference date (NSE index futures expiry)."""
     expiries: List[date] = []
     for m in range(3):
-        y = today.year
-        month = today.month + m
+        y = reference_date.year
+        month = reference_date.month + m
         if month > 12:
             month -= 12
             y += 1
         expiries.append(_last_thursday_of_month(date(y, month, 1)))
     return sorted(set(expiries))
+
+
+def _expiry_label(expiry_date: date) -> str:
+    """e.g. 2026-03-30 -> 30MAR26 for UI."""
+    return expiry_date.strftime("%d%b%y").upper()
+
+
+def get_near_next_far_expiries(reference_date: date) -> dict:
+    """
+    Returns { "near": { symbol, expiry_date, label }, "next": {...}, "far": {...} }
+    for the reference date (used for Latest = today, Historical = selected date).
+    """
+    expiries = _next_three_expiries_from(reference_date)
+    if len(expiries) < 3:
+        return {"near": None, "next": None, "far": None}
+    return {
+        "near": {
+            "symbol": _contract_label(expiries[0]),
+            "expiry_date": expiries[0].isoformat(),
+            "label": _expiry_label(expiries[0]),
+        },
+        "next": {
+            "symbol": _contract_label(expiries[1]),
+            "expiry_date": expiries[1].isoformat(),
+            "label": _expiry_label(expiries[1]),
+        },
+        "far": {
+            "symbol": _contract_label(expiries[2]),
+            "expiry_date": expiries[2].isoformat(),
+            "label": _expiry_label(expiries[2]),
+        },
+    }
+
+
+def _next_three_expiries() -> List[date]:
+    """Current month and next two months' last Thursday (NSE index futures expiry)."""
+    return _next_three_expiries_from(date.today())
 
 
 def fetch_nse_derivative_bhavcopy(for_date: date) -> Optional[pd.DataFrame]:
@@ -151,6 +187,46 @@ def refresh_futures_latest(db: Session) -> None:
         df = fetch_futures_ohlc_for_date(d)
         if not df.empty:
             upsert_ohlc_futures_from_df(db, df)
+
+
+def backfill_futures_for_options(
+    db: Session,
+    for_date: date,
+    contract: str,
+) -> int:
+    """
+    Backfill NIFTY futures for a single date, filtered by contract.
+    contract: "near" | "next" | "far" | "all"
+    Returns number of rows upserted.
+    """
+    expiries_map = get_near_next_far_expiries(for_date)
+    if expiries_map.get("near") is None:
+        return 0
+    expiry_dates_to_fetch: List[date] = []
+    if contract == "all":
+        expiry_dates_to_fetch = [
+            date.fromisoformat(expiries_map["near"]["expiry_date"]),
+            date.fromisoformat(expiries_map["next"]["expiry_date"]),
+            date.fromisoformat(expiries_map["far"]["expiry_date"]),
+        ]
+    elif contract == "near":
+        expiry_dates_to_fetch = [date.fromisoformat(expiries_map["near"]["expiry_date"])]
+    elif contract == "next":
+        expiry_dates_to_fetch = [date.fromisoformat(expiries_map["next"]["expiry_date"])]
+    elif contract == "far":
+        expiry_dates_to_fetch = [date.fromisoformat(expiries_map["far"]["expiry_date"])]
+    else:
+        return 0
+
+    df = fetch_futures_ohlc_for_date(for_date)
+    if df.empty:
+        return 0
+    df = df[df["expiry_date"].isin(expiry_dates_to_fetch)]
+    if df.empty:
+        return 0
+    n = len(df)
+    upsert_ohlc_futures_from_df(db, df)
+    return n
 
 
 # Initial simple universe – adjust to your needs

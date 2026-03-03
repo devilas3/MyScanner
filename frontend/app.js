@@ -16,6 +16,17 @@ const pivotsTableBody = document.querySelector("#pivots-table tbody");
 const resultsTableBody = document.querySelector("#results-table tbody");
 const toastEl = document.getElementById("toast");
 
+// Futures backfill UI
+const backfillModeLatest = document.getElementById("backfill-mode-latest");
+const backfillModeHistorical = document.getElementById("backfill-mode-historical");
+const backfillDateWrap = document.getElementById("backfill-date-wrap");
+const backfillDateInput = document.getElementById("backfill-date");
+const expiryNearLabel = document.getElementById("expiry-near-label");
+const expiryNextLabel = document.getElementById("expiry-next-label");
+const expiryFarLabel = document.getElementById("expiry-far-label");
+const backfillSecretInput = document.getElementById("backfill-secret");
+const btnBackfillFutures = document.getElementById("btn-backfill-futures");
+
 function todayISO() {
   const d = new Date();
   const off = d.getTimezoneOffset();
@@ -187,6 +198,73 @@ async function loadContracts() {
   }
 }
 
+// ——— Futures backfill ———
+async function loadBackfillExpiries(mode, refDate) {
+  let url = `${API_BASE_URL}/api/futures/expiries?mode=${encodeURIComponent(mode)}`;
+  if (mode === "historical" && refDate) url += "&date=" + encodeURIComponent(refDate);
+  try {
+    const data = await fetchJSON(url);
+    expiryNearLabel.textContent = data.near ? `Near (${data.near.label})` : "Near (—)";
+    expiryNextLabel.textContent = data.next ? `Next (${data.next.label})` : "Next (—)";
+    expiryFarLabel.textContent = data.far ? `Far (${data.far.label})` : "Far (—)";
+  } catch (err) {
+    console.error(err);
+    expiryNearLabel.textContent = "Near (—)";
+    expiryNextLabel.textContent = "Next (—)";
+    expiryFarLabel.textContent = "Far (—)";
+    showToast("Failed to load expiry options.");
+  }
+}
+
+function updateBackfillModeUI() {
+  const isHistorical = backfillModeHistorical.checked;
+  backfillDateWrap.style.display = isHistorical ? "flex" : "none";
+  if (isHistorical && !backfillDateInput.value) backfillDateInput.value = todayISO();
+  const refDate = isHistorical ? backfillDateInput.value : null;
+  loadBackfillExpiries(isHistorical ? "historical" : "latest", refDate || undefined);
+}
+
+async function submitBackfillFutures() {
+  const mode = backfillModeLatest.checked ? "latest" : "historical";
+  const contractEl = document.querySelector('input[name="backfill-contract"]:checked');
+  const contract = contractEl ? contractEl.value : "near";
+  if (mode === "historical" && !backfillDateInput.value) {
+    showToast("Select a date for historical backfill.");
+    return;
+  }
+  const secret = backfillSecretInput.value.trim();
+  if (!secret) {
+    showToast("Enter Refresh secret to run backfill.");
+    return;
+  }
+  const body = { mode, contract };
+  if (mode === "historical") body.date = backfillDateInput.value;
+  try {
+    btnBackfillFutures.disabled = true;
+    const res = await fetch(`${API_BASE_URL}/api/backfill/futures`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Refresh-Secret": secret,
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data.detail || data.message || "Backfill failed.");
+      return;
+    }
+    const rows = data.rows_upserted != null ? data.rows_upserted : 0;
+    showToast(data.status === "ok" ? `Futures backfill done. Rows: ${rows}` : (data.message || "Backfill failed."));
+    if (data.status === "ok" && segmentSelect.value === "future") loadContracts();
+  } catch (err) {
+    console.error(err);
+    showToast("Backfill request failed.");
+  } finally {
+    btnBackfillFutures.disabled = false;
+  }
+}
+
 function init() {
   scanDateInput.value = todayISO();
   addConditionRow("high >= r1 and close > r1");
@@ -205,6 +283,16 @@ function init() {
   loadPivotsBtn.addEventListener("click", () => loadPivots());
   runScanBtn.addEventListener("click", () => runScan(false));
   r1BreakoutBtn.addEventListener("click", () => runScan(true));
+
+  // Futures backfill: load latest expiries on load
+  loadBackfillExpiries("latest");
+  backfillModeLatest.addEventListener("change", updateBackfillModeUI);
+  backfillModeHistorical.addEventListener("change", updateBackfillModeUI);
+  backfillDateInput.addEventListener("change", () => {
+    if (backfillModeHistorical.checked && backfillDateInput.value)
+      loadBackfillExpiries("historical", backfillDateInput.value);
+  });
+  btnBackfillFutures.addEventListener("click", submitBackfillFutures);
 }
 
 document.addEventListener("DOMContentLoaded", init);

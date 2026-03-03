@@ -45,6 +45,41 @@
           <button id="btn-run-scan" class="primary-btn">Run scan</button>
         </header>
 
+        <section class="backfill-panel" id="backfill-panel">
+          <h2 class="backfill-title">Futures backfill</h2>
+          <div class="backfill-row">
+            <span class="backfill-label">Select list</span>
+            <div class="backfill-radio-group">
+              <label class="radio-label">
+                <input type="radio" name="backfill-mode" value="latest" id="backfill-mode-latest" checked />
+                <span>Latest</span>
+              </label>
+              <label class="radio-label">
+                <input type="radio" name="backfill-mode" value="historical" id="backfill-mode-historical" />
+                <span>Historical</span>
+              </label>
+            </div>
+            <div class="backfill-date-wrap" id="backfill-date-wrap" style="display: none;">
+              <label for="backfill-date" class="backfill-label">Select date</label>
+              <input type="date" id="backfill-date" />
+            </div>
+            <div class="backfill-expiry-wrap">
+              <span class="backfill-label">Expiry:</span>
+              <div class="backfill-radio-group" id="backfill-expiry-group">
+                <label class="radio-label"><input type="radio" name="backfill-contract" value="near" id="backfill-contract-near" checked /><span id="expiry-near-label">Near (—)</span></label>
+                <label class="radio-label"><input type="radio" name="backfill-contract" value="next" id="backfill-contract-next" /><span id="expiry-next-label">Next (—)</span></label>
+                <label class="radio-label"><input type="radio" name="backfill-contract" value="far" id="backfill-contract-far" /><span id="expiry-far-label">Far (—)</span></label>
+                <label class="radio-label"><input type="radio" name="backfill-contract" value="all" id="backfill-contract-all" /><span>All</span></label>
+              </div>
+            </div>
+            <div class="backfill-secret-wrap">
+              <label for="backfill-secret" class="backfill-label">Refresh secret</label>
+              <input type="password" id="backfill-secret" placeholder="Required for backfill" autocomplete="off" />
+            </div>
+            <button type="button" id="btn-backfill-futures" class="primary-btn">Submit</button>
+          </div>
+        </section>
+
         <section class="conditions-panel">
           <div class="conditions-header">
             <h2>Conditions</h2>
