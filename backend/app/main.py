@@ -149,14 +149,17 @@ def api_scan(req: ScanRequest, db: Session = Depends(get_db)):
     return [ScanRow(**r) for r in filtered_rows]
 
 
-@app.post("/api/refresh", status_code=status.HTTP_204_NO_CONTENT)
+@app.post("/api/refresh")
 def api_refresh(
     x_refresh_secret: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
+    """Daily refresh: fetch latest OHLC and compute pivots. Returns minimal JSON so cron services don't flag 'output too large'."""
     if x_refresh_secret != settings.refresh_secret:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-
-    refresh_latest_for_all_segments(db)
-    return None
+    try:
+        refresh_latest_for_all_segments(db)
+        return {"status": "ok"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)[:200]}
 

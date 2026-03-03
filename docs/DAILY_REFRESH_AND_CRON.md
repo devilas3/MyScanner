@@ -103,6 +103,8 @@ Save the header.
 
 If you get **401 Unauthorized**, the header name or value is wrong: it must be exactly `X-Refresh-Secret` and the same value as `REFRESH_SECRET` on Render.
 
+If you see **Failed (output too large)** on cron-job.org, the API was updated to return a minimal JSON `{"status":"ok"}` so the response stays small. Redeploy the backend, then run the cron again. If it still happens, set the cron job timeout to **120 seconds** (Render free tier can be slow to wake up) and ensure the URL is exactly `https://myscanner-81ql.onrender.com/api/refresh` with method **POST**.
+
 ---
 
 ## 5. Summary checklist
