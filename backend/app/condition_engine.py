@@ -21,18 +21,35 @@ ALLOWED_NAMES = {
 
 def _normalize_condition(expr: str) -> str:
     text = expr.strip().lower()
+    # Remove common filler words so "stock high is greater than close" -> "high greater than close"
+    for word in ("stock ", "stocks ", "the ", " price ", " prices "):
+        text = text.replace(word, " ")
+    for phrase in (" is ", " are ", " was ", " were "):
+        text = text.replace(phrase, " ")
+    # Phrase -> operator (order matters: longer phrases first)
     replacements = {
+        " greater than or equal to ": " >= ",
+        " less than or equal to ": " <= ",
+        " at least ": " >= ",
+        " at most ": " <= ",
         " above r1": " > r1",
         " above r2": " > r2",
         " above pivot": " > pivot",
+        " below r1": " < r1",
+        " below s1": " < s1",
         " crossed r1": " >= r1",
         " crossed r2": " >= r2",
+        " above ": " > ",
+        " below ": " < ",
         " less than ": " < ",
         " greater than ": " > ",
+        " higher than ": " > ",
+        " lower than ": " < ",
     }
     for k, v in replacements.items():
         text = text.replace(k, v)
-    return text
+    # Collapse multiple spaces and strip
+    return " ".join(text.split())
 
 
 def evaluate_condition(row: Dict[str, Any], condition: str) -> bool:
