@@ -1,3 +1,4 @@
+import re
 import socket
 from datetime import date
 from typing import Generator
@@ -23,6 +24,13 @@ from .config import get_settings
 settings = get_settings()
 
 
+def _normalize_db_url_for_parse(url: str) -> str:
+    """Remove brackets around IPv4 so urlparse() does not raise 'An IPv4 address cannot be in brackets'."""
+    if not url or not url.startswith("postgresql"):
+        return url
+    return re.sub(r"@\[(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\]", r"@\1", url)
+
+
 def _resolve_host_to_ipv4(host: str, port: int | None) -> str:
     """Resolve hostname to IPv4 so runtimes that expect an IP (e.g. ip_address(host)) don't raise."""
     if not host:
@@ -44,10 +52,14 @@ def _resolve_host_to_ipv4(host: str, port: int | None) -> str:
 
 
 def _engine_url_with_ssl(url: str) -> str:
-    """Ensure PostgreSQL URLs have sslmode=require; resolve hostname to IPv4 for strict runtimes (e.g. Render)."""
+    """Ensure PostgreSQL URLs have sslmode=require; resolve hostname to IPv4 if needed."""
     if not url.startswith("postgresql"):
         return url
-    parsed = urlparse(url)
+    url = _normalize_db_url_for_parse(url)
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return url
     params = parse_qsl(parsed.query)
     if not any(k == "sslmode" for k, _ in params):
         params.append(("sslmode", "require"))
@@ -57,7 +69,6 @@ def _engine_url_with_ssl(url: str) -> str:
     if host:
         resolved = _resolve_host_to_ipv4(host, port)
         if resolved != host:
-            # Replace only the host part in netloc so user/pass stay intact
             netloc = parsed.netloc
             at = netloc.rfind("@") + 1
             rest = netloc[at:]
