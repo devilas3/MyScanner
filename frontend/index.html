@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NSE Pivot Scanner</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <h1 class="logo">NSE Scanner</h1>
+        <button id="btn-r1-breakout" class="primary-btn">R1 Pivot Breakout</button>
+        <div class="sidebar-note">
+          Runs scan with condition:<br />
+          <code>high &gt;= r1 and close &gt; r1</code>
+        </div>
+      </aside>
+      <main class="main">
+        <header class="toolbar">
+          <div class="field">
+            <label for="scan-date">Date</label>
+            <input type="date" id="scan-date" />
+          </div>
+          <div class="field">
+            <label for="segment">Segment</label>
+            <select id="segment">
+              <option value="equity" selected>Equity</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="combine-mode">Combine conditions</label>
+            <select id="combine-mode">
+              <option value="and" selected>Match all (AND)</option>
+              <option value="or">Match any (OR)</option>
+            </select>
+          </div>
+          <button id="btn-run-scan" class="primary-btn">Run scan</button>
+        </header>
+
+        <section class="conditions-panel">
+          <div class="conditions-header">
+            <h2>Conditions</h2>
+            <div class="conditions-actions">
+              <button id="btn-add-condition" class="ghost-btn">Add condition</button>
+              <button id="btn-clear-conditions" class="ghost-btn">Clear</button>
+            </div>
+          </div>
+          <div id="conditions-container" class="conditions-container"></div>
+          <p class="hint">
+            Examples: <code>close &gt; r1</code>, <code>high &gt;= r1 and close &gt; r1</code>,
+            <code>volume &gt; 1000000</code>, <code>close above r1</code>
+          </p>
+        </section>
+
+        <section class="tables">
+          <div class="table-card">
+            <div class="table-header">
+              <h2>Daily Pivots</h2>
+              <button id="btn-load-pivots" class="ghost-btn">Load pivots</button>
+            </div>
+            <div class="table-wrapper">
+              <table id="pivots-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Pivot</th>
+                    <th>R1</th>
+                    <th>R2</th>
+                    <th>S1</th>
+                    <th>S2</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="table-card highlighted">
+            <div class="table-header">
+              <h2>Scan Results</h2>
+            </div>
+            <div class="table-wrapper">
+              <table id="results-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Date</th>
+                    <th>Open</th>
+                    <th>High</th>
+                    <th>Low</th>
+                    <th>Close</th>
+                    <th>Pivot</th>
+                    <th>R1</th>
+                    <th>Volume</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="app.js"></script>
+  </body>
+  </html>
+
