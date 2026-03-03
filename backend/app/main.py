@@ -17,14 +17,15 @@ settings = get_settings()
 
 app = FastAPI(title="NSE Equity Stock Scanner API")
 
-if settings.cors_origins:
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=[str(o) for o in settings.cors_origins],
-        allow_credentials=True,
-        allow_methods=["*"],
-        allow_headers=["*"],
-    )
+# Allow frontend from any origin (Hostinger, localhost, file). Set CORS_ORIGINS in env to restrict.
+origins = [str(o) for o in settings.cors_origins] if settings.cors_origins else ["*"]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 class PivotRow(BaseModel):

@@ -1,4 +1,5 @@
-const API_BASE_URL = "http://localhost:8000";
+// Use your Render API URL (replace with your Hostinger URL if you host the frontend there)
+const API_BASE_URL = "https://myscanner-81ql.onrender.com";
 
 const scanDateInput = document.getElementById("scan-date");
 const segmentSelect = document.getElementById("segment");
