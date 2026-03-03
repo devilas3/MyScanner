@@ -29,4 +29,6 @@ Render’s network is **IPv4-only**. Supabase’s direct database host (`db.xxx.
 2. Click **Environment** in the left sidebar.
 3. Add or edit **DATABASE_URL** with the **pooler** URI from Supabase.
 4. Add **REFRESH_SECRET** with a long random string.
-5. Save. Render will redeploy.
+5. In **Settings**, set **Start Command** to: `python -m app.run_resolved`  
+   This resolves the pooler hostname to IPv4 before the app loads and avoids `ValueError: '...pooler.supabase.com' does not appear to be an IPv4 or IPv6 address` on Render.
+6. Save. Render will redeploy.
