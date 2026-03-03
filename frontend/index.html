@@ -26,6 +26,13 @@
             <label for="segment">Segment</label>
             <select id="segment">
               <option value="equity" selected>Equity</option>
+              <option value="future">Future</option>
+            </select>
+          </div>
+          <div class="field contract-field" id="contract-field" style="display: none;">
+            <label for="contract">Contract</label>
+            <select id="contract">
+              <option value="">— Select contract —</option>
             </select>
           </div>
           <div class="field">
@@ -64,6 +71,7 @@
                 <thead>
                   <tr>
                     <th>Symbol</th>
+                    <th class="contract-col">Contract</th>
                     <th>Pivot</th>
                     <th>R1</th>
                     <th>R2</th>
@@ -85,6 +93,7 @@
                 <thead>
                   <tr>
                     <th>Symbol</th>
+                    <th class="contract-col">Contract</th>
                     <th>Date</th>
                     <th>Open</th>
                     <th>High</th>

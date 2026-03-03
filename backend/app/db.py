@@ -1,7 +1,7 @@
 import re
 import socket
 from datetime import date
-from typing import Generator, Optional
+from typing import Any, Dict, Generator, List, Optional
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 from sqlalchemy import (
@@ -151,6 +151,17 @@ def get_db() -> Generator[Session, None, None]:
 
 def get_latest_ohlc_date(db: Session, segment: str) -> Optional[date]:
     stmt = select(OHLC.date).where(OHLC.segment == segment).order_by(OHLC.date.desc()).limit(1)
-    result = db.execute(stmt).scalar_one_or_none()
-    return result
+    return db.execute(stmt).scalar_one_or_none()
+
+
+def get_future_contracts(db: Session) -> List[Dict[str, Any]]:
+    """Distinct (symbol, expiry_date) for segment=future, for contract selector."""
+    rows = (
+        db.query(OHLC.symbol, OHLC.expiry_date)
+        .filter(OHLC.segment == "future", OHLC.expiry_date.isnot(None))
+        .group_by(OHLC.symbol, OHLC.expiry_date)
+        .order_by(OHLC.expiry_date.asc())
+        .all()
+    )
+    return [{"symbol": r[0], "expiry_date": r[1]} for r in rows]
 

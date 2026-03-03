@@ -3,6 +3,8 @@ const API_BASE_URL = "https://myscanner-81ql.onrender.com";
 
 const scanDateInput = document.getElementById("scan-date");
 const segmentSelect = document.getElementById("segment");
+const contractSelect = document.getElementById("contract");
+const contractField = document.getElementById("contract-field");
 const combineModeSelect = document.getElementById("combine-mode");
 const addConditionBtn = document.getElementById("btn-add-condition");
 const clearConditionsBtn = document.getElementById("btn-clear-conditions");
@@ -77,15 +79,22 @@ async function loadPivots() {
     showToast("Select a date first.");
     return;
   }
+  if (segment === "future" && !contractSelect.value) {
+    showToast("Select a contract for futures.");
+    return;
+  }
   try {
     pivotsTableBody.innerHTML = "";
-    const data = await fetchJSON(
-      `${API_BASE_URL}/api/pivots?date=${encodeURIComponent(date)}&segment=${encodeURIComponent(segment)}`
-    );
+    let url = `${API_BASE_URL}/api/pivots?date=${encodeURIComponent(date)}&segment=${encodeURIComponent(segment)}`;
+    if (segment === "future" && contractSelect.value)
+      url += "&expiry_date=" + encodeURIComponent(contractSelect.value);
+    const data = await fetchJSON(url);
     for (const row of data) {
       const tr = document.createElement("tr");
+      const contract = row.expiry_date || "";
       tr.innerHTML = `
         <td>${row.symbol}</td>
+        <td class="contract-col">${contract}</td>
         <td>${row.pivot.toFixed(2)}</td>
         <td>${row.r1.toFixed(2)}</td>
         <td>${row.r2.toFixed(2)}</td>
@@ -108,6 +117,10 @@ async function runScan(withPreset = false) {
     showToast("Select a date first.");
     return;
   }
+  if (segment === "future" && !contractSelect.value) {
+    showToast("Select a contract for futures.");
+    return;
+  }
 
   let conditions;
   if (withPreset) {
@@ -126,6 +139,8 @@ async function runScan(withPreset = false) {
     conditions,
     combine: combineModeSelect.value,
   };
+  if (segment === "future" && contractSelect.value)
+    body.expiry_date = contractSelect.value;
 
   try {
     resultsTableBody.innerHTML = "";
@@ -135,8 +150,10 @@ async function runScan(withPreset = false) {
     });
     for (const row of data) {
       const tr = document.createElement("tr");
+      const contract = row.expiry_date || "";
       tr.innerHTML = `
         <td>${row.symbol}</td>
+        <td class="contract-col">${contract}</td>
         <td>${row.date}</td>
         <td>${row.open.toFixed(2)}</td>
         <td>${row.high.toFixed(2)}</td>
@@ -155,9 +172,30 @@ async function runScan(withPreset = false) {
   }
 }
 
+async function loadContracts() {
+  contractSelect.innerHTML = '<option value="">— Select contract —</option>';
+  try {
+    const data = await fetchJSON(`${API_BASE_URL}/api/contracts?segment=future`);
+    for (const c of data) {
+      const opt = document.createElement("option");
+      opt.value = c.expiry_date;
+      opt.textContent = `${c.symbol} (${c.expiry_date})`;
+      contractSelect.appendChild(opt);
+    }
+  } catch (err) {
+    console.error(err);
+  }
+}
+
 function init() {
   scanDateInput.value = todayISO();
   addConditionRow("high >= r1 and close > r1");
+
+  segmentSelect.addEventListener("change", () => {
+    const isFuture = segmentSelect.value === "future";
+    contractField.style.display = isFuture ? "flex" : "none";
+    if (isFuture) loadContracts();
+  });
 
   addConditionBtn.addEventListener("click", () => addConditionRow(""));
   clearConditionsBtn.addEventListener("click", () => {

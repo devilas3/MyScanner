@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 
 from .config import get_settings
 from .condition_engine import evaluate_conditions_for_rows
-from .db import OHLC, Pivot, get_db, init_db
-from .pivot import compute_pivots_for_date, find_r1_breakouts_for_date
+from .db import OHLC, get_db, get_future_contracts, init_db
+from .pivot import compute_pivots_from_ohlc, find_r1_breakouts_for_date
 from .bhavcopy_fetcher import refresh_latest_for_all_segments
 
 
@@ -37,6 +37,7 @@ class PivotRow(BaseModel):
     r2: float
     s1: float
     s2: float
+    expiry_date: Optional[date] = None
 
 
 class BreakoutRow(BaseModel):
@@ -49,11 +50,18 @@ class BreakoutRow(BaseModel):
     close: float
     pivot: float
     r1: float
+    expiry_date: Optional[date] = None
+
+
+class ContractRow(BaseModel):
+    symbol: str
+    expiry_date: date
 
 
 class ScanRequest(BaseModel):
     date: date
     segment: str = "equity"
+    expiry_date: Optional[date] = None  # for segment=future: contract expiry
     conditions: List[str]
     combine: str = "and"
 
@@ -72,6 +80,7 @@ class ScanRow(BaseModel):
     r2: Optional[float] = None
     s1: Optional[float] = None
     s2: Optional[float] = None
+    expiry_date: Optional[date] = None
 
 
 @app.on_event("startup")
@@ -80,53 +89,79 @@ def on_startup() -> None:
 
 
 @app.get("/api/pivots", response_model=List[PivotRow])
-def api_get_pivots(date: date = Query(...), segment: str = Query("equity"), db: Session = Depends(get_db)):
-    rows = (
-        db.query(Pivot)
-        .filter(Pivot.date == date, Pivot.segment == segment)
-        .order_by(Pivot.symbol.asc())
-        .all()
-    )
+def api_get_pivots(
+    date: date = Query(...),
+    segment: str = Query("equity"),
+    expiry_date: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
+):
+    """Pivots computed at runtime from previous day OHLC (not stored in DB). For futures, pass expiry_date."""
+    rows = compute_pivots_from_ohlc(db, date, segment, expiry_date)
     return [
         PivotRow(
-            symbol=r.symbol,
-            segment=r.segment,
-            date=r.date,
-            pivot=r.pivot,
-            r1=r.r1,
-            r2=r.r2,
-            s1=r.s1,
-            s2=r.s2,
+            symbol=r["symbol"],
+            segment=r["segment"],
+            date=r["date"],
+            pivot=r["pivot"],
+            r1=r["r1"],
+            r2=r["r2"],
+            s1=r["s1"],
+            s2=r["s2"],
+            expiry_date=r.get("expiry_date"),
         )
-        for r in rows
+        for r in sorted(rows, key=lambda x: (x["symbol"], x.get("expiry_date") or date.min))
     ]
+
+
+@app.get("/api/contracts", response_model=List[ContractRow])
+def api_get_contracts(segment: str = Query("future"), db: Session = Depends(get_db)):
+    """List of future contracts (symbol, expiry_date) for the contract selector. Only segment=future has contracts."""
+    if segment != "future":
+        return []
+    return [ContractRow(symbol=c["symbol"], expiry_date=c["expiry_date"]) for c in get_future_contracts(db)]
 
 
 @app.get("/api/r1-breakouts", response_model=List[BreakoutRow])
 def api_get_r1_breakouts(
-    date: date = Query(...), segment: str = Query("equity"), db: Session = Depends(get_db)
+    date: date = Query(...),
+    segment: str = Query("equity"),
+    expiry_date: Optional[date] = Query(None),
+    db: Session = Depends(get_db),
 ):
-    return find_r1_breakouts_for_date(db, date=date, segment=segment)
+    breakouts = find_r1_breakouts_for_date(db, date=date, segment=segment, expiry_date=expiry_date)
+    return [
+        BreakoutRow(
+            symbol=b["symbol"],
+            segment=b["segment"],
+            date=b["date"],
+            open=b["open"],
+            high=b["high"],
+            low=b["low"],
+            close=b["close"],
+            pivot=b["pivot"],
+            r1=b["r1"],
+            expiry_date=b.get("expiry_date"),
+        )
+        for b in breakouts
+    ]
 
 
 @app.post("/api/scan", response_model=List[ScanRow])
 def api_scan(req: ScanRequest, db: Session = Depends(get_db)):
-    # Load OHLC + pivots for the requested date and segment
-    ohlc_rows = (
-        db.query(OHLC)
-        .filter(OHLC.date == req.date, OHLC.segment == req.segment)
-        .all()
-    )
-    pivot_rows = (
-        db.query(Pivot)
-        .filter(Pivot.date == req.date, Pivot.segment == req.segment)
-        .all()
-    )
-    pivot_by_symbol = {p.symbol: p for p in pivot_rows}
+    """Scan: OHLC from DB, pivots computed at runtime. For futures, filter by req.expiry_date."""
+    q = db.query(OHLC).filter(OHLC.date == req.date, OHLC.segment == req.segment)
+    if req.segment == "future" and req.expiry_date is not None:
+        q = q.filter(OHLC.expiry_date == req.expiry_date)
+    ohlc_rows = q.all()
+
+    pivot_rows = compute_pivots_from_ohlc(db, req.date, req.segment, req.expiry_date)
+    key = lambda r: (r["symbol"], r.get("expiry_date"))
+    pivot_by_key = {key(r): r for r in pivot_rows}
 
     dataset = []
     for o in ohlc_rows:
-        p = pivot_by_symbol.get(o.symbol)
+        k = (o.symbol, getattr(o, "expiry_date", None))
+        p = pivot_by_key.get(k)
         row = {
             "symbol": o.symbol,
             "segment": o.segment,
@@ -136,16 +171,16 @@ def api_scan(req: ScanRequest, db: Session = Depends(get_db)):
             "low": o.low,
             "close": o.close,
             "volume": o.volume,
-            "pivot": getattr(p, "pivot", None) if p else None,
-            "r1": getattr(p, "r1", None) if p else None,
-            "r2": getattr(p, "r2", None) if p else None,
-            "s1": getattr(p, "s1", None) if p else None,
-            "s2": getattr(p, "s2", None) if p else None,
+            "pivot": p["pivot"] if p else None,
+            "r1": p["r1"] if p else None,
+            "r2": p["r2"] if p else None,
+            "s1": p["s1"] if p else None,
+            "s2": p["s2"] if p else None,
+            "expiry_date": getattr(o, "expiry_date", None),
         }
         dataset.append(row)
 
     filtered_rows = evaluate_conditions_for_rows(dataset, req.conditions, req.combine)
-
     return [ScanRow(**r) for r in filtered_rows]
 
 
@@ -154,7 +189,7 @@ def api_refresh(
     x_refresh_secret: str = Header(default=""),
     db: Session = Depends(get_db),
 ):
-    """Daily refresh: fetch latest OHLC and compute pivots. Returns minimal JSON so cron services don't flag 'output too large'."""
+    """Daily refresh: fetch latest OHLC (equity + futures). Pivots are computed at runtime only, not stored."""
     if x_refresh_secret != settings.refresh_secret:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
     try:

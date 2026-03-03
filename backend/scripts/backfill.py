@@ -13,10 +13,11 @@ from sqlalchemy.orm import Session
 from app.bhavcopy_fetcher import (
     EQUITY_SYMBOLS,
     fetch_ohlc_yfinance,
+    fetch_futures_ohlc_for_date,
     upsert_ohlc_from_df,
+    upsert_ohlc_futures_from_df,
 )
 from app.db import SessionLocal
-from app.pivot import compute_pivots_for_date
 
 
 def backfill_equity(
@@ -24,22 +25,37 @@ def backfill_equity(
     start: date,
     end: date,
 ) -> None:
-    print(f"Fetching OHLC for {len(EQUITY_SYMBOLS)} symbols from {start} to {end}...")
+    print(f"Fetching equity OHLC for {len(EQUITY_SYMBOLS)} symbols from {start} to {end}...")
     df = fetch_ohlc_yfinance(EQUITY_SYMBOLS, start=start, end=end)
     if df.empty:
-        print("No data returned from yfinance. Check symbols and date range.")
+        print("No equity data returned. Check symbols and date range.")
         return
     print(f"Got {len(df)} rows. Upserting into DB...")
     upsert_ohlc_from_df(db, df, segment="equity")
-    dates = sorted({d for d in df["date"].unique()})
-    print(f"Computing pivots for {len(dates)} dates...")
-    for d in dates:
-        compute_pivots_for_date(db, target_date=d, segment="equity")
-    print("Backfill done.")
+    print("Equity backfill done.")
+
+
+def backfill_futures(db: Session, start: date, end: date) -> None:
+    """Backfill NIFTY futures for each trading day in range (NSE bhavcopy)."""
+    print(f"Fetching NIFTY futures from {start} to {end}...")
+    d = start
+    count = 0
+    while d <= end:
+        df = fetch_futures_ohlc_for_date(d)
+        if not df.empty:
+            upsert_ohlc_futures_from_df(db, df)
+            count += len(df)
+        d += timedelta(days=1)
+    print(f"Futures backfill done ({count} rows).")
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Backfill equity OHLC and pivots into the database.")
+    parser = argparse.ArgumentParser(description="Backfill equity and/or futures OHLC into the database (no pivots; pivots are runtime-only).")
+    parser.add_argument(
+        "--futures",
+        action="store_true",
+        help="Also backfill NIFTY futures from NSE bhavcopy (slower, day-by-day).",
+    )
     parser.add_argument(
         "--years",
         type=float,
@@ -77,6 +93,8 @@ if __name__ == "__main__":
     db = SessionLocal()
     try:
         backfill_equity(db, start=start, end=end)
+        if args.futures:
+            backfill_futures(db, start=start, end=end)
     finally:
         db.close()
 
