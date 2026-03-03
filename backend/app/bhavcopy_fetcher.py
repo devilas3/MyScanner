@@ -5,10 +5,13 @@ from typing import Iterable, List
 
 import pandas as pd
 import yfinance as yf
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from .db import OHLC, get_latest_ohlc_date
 from .pivot import compute_pivots_for_date
+
+BULK_UPSERT_CHUNK = 500
 
 
 # Initial simple universe – adjust to your needs
@@ -89,36 +92,25 @@ def upsert_ohlc_from_df(db: Session, df: pd.DataFrame, segment: str) -> None:
     if df.empty:
         return
 
-    for _, row in df.iterrows():
-        existing = (
-            db.query(OHLC)
-            .filter(
-                OHLC.symbol == row["symbol"],
-                OHLC.date == row["date"],
-                OHLC.segment == segment,
-            )
-            .one_or_none()
+    df = df.copy()
+    df["segment"] = segment
+    rows = df[["symbol", "date", "segment", "open", "high", "low", "close", "volume"]].to_dict("records")
+
+    for i in range(0, len(rows), BULK_UPSERT_CHUNK):
+        chunk = rows[i : i + BULK_UPSERT_CHUNK]
+        stmt = pg_insert(OHLC).values(chunk)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=["symbol", "date", "segment"],
+            set_={
+                "open": stmt.excluded.open,
+                "high": stmt.excluded.high,
+                "low": stmt.excluded.low,
+                "close": stmt.excluded.close,
+                "volume": stmt.excluded.volume,
+            },
         )
-        if existing:
-            existing.open = row["open"]
-            existing.high = row["high"]
-            existing.low = row["low"]
-            existing.close = row["close"]
-            existing.volume = row["volume"]
-        else:
-            db.add(
-                OHLC(
-                    symbol=row["symbol"],
-                    segment=segment,
-                    date=row["date"],
-                    open=row["open"],
-                    high=row["high"],
-                    low=row["low"],
-                    close=row["close"],
-                    volume=row["volume"],
-                )
-            )
-    db.commit()
+        db.execute(stmt)
+        db.commit()
 
 
 def refresh_segment_latest(db: Session, segment: str, symbols: Iterable[str]) -> None:

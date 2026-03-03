@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from .db import OHLC, Pivot
 
 
-def _previous_trading_date(db: Session, current: date, segment: str) -> date | None:
+def _previous_trading_date(db: Session, current: date, segment: str) -> Optional[date]:
     stmt = (
         select(OHLC.date)
         .where(and_(OHLC.segment == segment, OHLC.date < current))

@@ -1,7 +1,7 @@
 import re
 import socket
 from datetime import date
-from typing import Generator
+from typing import Generator, Optional
 from urllib.parse import urlparse, urlunparse, parse_qsl, urlencode
 
 from sqlalchemy import (
@@ -31,7 +31,7 @@ def _normalize_db_url_for_parse(url: str) -> str:
     return re.sub(r"@\[(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\]", r"@\1", url)
 
 
-def _resolve_host_to_ipv4(host: str, port: int | None) -> str:
+def _resolve_host_to_ipv4(host: str, port: Optional[int]) -> str:
     """Resolve hostname to IPv4 so runtimes that expect an IP (e.g. ip_address(host)) don't raise."""
     if not host:
         return host
@@ -149,7 +149,7 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
-def get_latest_ohlc_date(db: Session, segment: str) -> date | None:
+def get_latest_ohlc_date(db: Session, segment: str) -> Optional[date]:
     stmt = select(OHLC.date).where(OHLC.segment == segment).order_by(OHLC.date.desc()).limit(1)
     result = db.execute(stmt).scalar_one_or_none()
     return result
